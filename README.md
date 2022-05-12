@@ -1,4 +1,4 @@
-# wpc
+# WPE
 Written Preliminary Exam or Literature Review: Methods for Functional Snippets. (modified from the [mcfda](https://github.com/linulysses/mcfda) package)
 
 ## Install
