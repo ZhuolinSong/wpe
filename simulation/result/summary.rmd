@@ -1,0 +1,575 @@
+```{r}`
+library(xtable)
+library(reshape2)
+library(RColorBrewer)
+library(fields)
+library(plotly)
+library(R.matlab)
+
+devtools::load_all()
+
+load("random_design.RData")
+load("regular_sparse_design.RData")
+load("simulation/result/dense_regular_design20a.RData")
+dense = dense_regular_design
+load("simulation/result/dense_regular_design20b.RData")
+dense[21:40] = dense_regular_design
+load("simulation/result/dense_regular_design20c.RData")
+dense[41:60] = dense_regular_design
+load("simulation/result/dense_regular_design20d.RData")
+dense[61:80] = dense_regular_design
+load("simulation/result/dense_regular_design20e.RData")
+dense[81:100] = dense_regular_design
+```
+
+```{r, functions}
+
+grid_illustration = function(param, mean1, mean2, mean3, mean4){
+    truth = sim.truth(param)
+    grid = param[['grid']]
+    ymax = max(truth$truemugrid)
+    ymin = min(truth$truemugrid)
+    plot (grid, truth$truemugrid, type = "l", col = 1, ylim = c(ymin, ymax))
+    lines(grid, mean1, lty = 2, col = 2)
+    lines(grid, mean2, lty = 2, col = 3)
+    lines(grid, mean3, lty = 2, col = 4)
+    lines(grid, mean4, lty = 2, col = 5)
+    legend('top', legend=c("Truth", "BER", "SP", "PACE", "FACE"),
+       col=1:4, lty=c(1,2,2,2,2), cex=1)
+    title(main = paste("n:", param[['n']], ", delta:", param[['delta']], ", m:", param[['m']], ", C:", param[['idx']], sep="")) # , 
+}
+
+cov_illustration = function(param, cov1, cov2, cov3, cov4, cov5){
+    truth = sim.truth(param)
+
+    image.plot(truth$truecovgrid, col = NULL, xlab = "", ylab = "", asp = 1, sub = "Truth", bty = "none", font.main = 1, cex.main = 14 / 9)
+    image.plot(cov5, col = NULL, xlab = "", ylab = "", asp = 1, bty = "none", sub = "SAMC", font.main = 1, cex.main = 14 / 9)
+    image.plot(cov1, col = NULL, xlab = "", ylab = "", asp = 1, bty = "none", sub = "BER", font.main = 1, cex.main = 14 / 9)
+    image.plot(cov2, col = NULL, xlab = "", ylab = "", asp = 1, bty = "none", sub = "SP", font.main = 1, cex.main = 14 / 9)
+    image.plot(cov3, col = NULL, xlab = "", ylab = "", asp = 1, bty = "none", sub = "PACE", font.main = 1, cex.main = 14 / 9)
+    image.plot(cov4, col = NULL, xlab = "", ylab = "", asp = 1, bty = "none", sub = "FACE", font.main = 1, cex.main = 14 / 9)
+    title(main = paste("n:", param[['n']], ", delta:", param[['delta']], ", m:", param[['m']], ", C:", param[['idx']], sep="")) # , 
+}
+
+cov_interact = function(grid, truth, cov1, cov2, cov3, cov4, cov5, cov6){
+    print(plot_ly(z = ~truth, x = ~grid, y = ~grid, type='surface'))
+    print(plot_ly(z = ~cov1, x = ~grid, y = ~grid, type='surface'))
+    print(plot_ly(z = ~cov2, x = ~grid, y = ~grid, type='surface'))
+    print(plot_ly(z = ~cov3, x = ~grid, y = ~grid, type='surface'))
+    print(plot_ly(z = ~cov4, x = ~grid, y = ~grid, type='surface'))
+    print(plot_ly(z = ~cov5, x = ~grid, y = ~grid, type='surface'))
+    print(plot_ly(z = ~cov6, x = ~grid, y = ~grid, type='surface'))
+}
+
+regular.summary <- function (sims){
+    summary <- list()
+
+    cov1.mean <- list()
+    cov1.ise <- list()
+    cnt1 = list()
+
+    cov2.mean <- list()
+    cov2.ise <- list()
+    cnt2 = list()
+
+    cov3.mean <- list()
+    cov3.ise <- list()
+    cnt3 = list()
+
+    cov4.mean <- list()
+    cov4.ise <- list()
+    cnt4 = list()
+
+    cov5.mean <- list()
+    cov5.ise <- list()
+    cnt5 = list()
+
+    cov6.mean <- list()
+    cov6.ise <- list()
+    cnt6 = list()
+
+    i_aborted = c()
+    grid = regular.grid()
+    tmp = pracma::meshgrid(grid)
+    x1 = tmp$X
+    x2 = tmp$Y
+    
+    # retrieve the values
+    for (n in seq_along(v_n)){
+        summary[[n]] <- list()
+
+        cov1.mean[[n]] <- list()
+        cov1.ise[[n]] <- list()
+        cnt1[[n]] = list()
+
+        cov2.mean[[n]] <- list()
+        cov2.ise[[n]] <- list()
+        cnt2[[n]] = list()
+
+        cov3.mean[[n]] <- list()
+        cov3.ise[[n]] <- list()
+        cnt3[[n]] = list()
+
+        cov4.mean[[n]] <- list()
+        cov4.ise[[n]] <- list()
+        cnt4[[n]] = list()
+
+        cov5.mean[[n]] <- list()
+        cov5.ise[[n]] <- list()
+        cnt5[[n]] = list()
+
+        cov6.mean[[n]] <- list()
+        cov6.ise[[n]] <- list()
+        cnt6[[n]] = list()
+    for (delta in seq_along(v_delta)){
+        summary[[n]][[delta]] <- list()
+
+        cov1.mean[[n]][[delta]] <- list()
+        cov1.ise[[n]][[delta]] <- list()
+        cnt1[[n]][[delta]] <- list()
+
+        cov2.mean[[n]][[delta]] <- list()
+        cov2.ise[[n]][[delta]] <- list()
+        cnt2[[n]][[delta]] <- list()
+
+        cov3.mean[[n]][[delta]] <- list()
+        cov3.ise[[n]][[delta]] <- list()
+        cnt3[[n]][[delta]] <- list()
+
+        cov4.mean[[n]][[delta]] <- list()
+        cov4.ise[[n]][[delta]] <- list()
+        cnt4[[n]][[delta]] <- list()
+
+        cov5.mean[[n]][[delta]] <- list()
+        cov5.ise[[n]][[delta]] <- list()
+        cnt5[[n]][[delta]] <- list()
+
+        cov6.mean[[n]][[delta]] <- list()
+        cov6.ise[[n]][[delta]] <- list()
+        cnt6[[n]][[delta]] <- list()
+    for (m in seq_along(v_m)){
+        summary[[n]][[delta]][[m]] <- list()
+
+        cov1.mean[[n]][[delta]][[m]] <- list()
+        cov1.ise[[n]][[delta]][[m]] <- list()
+        cnt1[[n]][[delta]][[m]] <- list()
+
+        cov2.mean[[n]][[delta]][[m]] <- list()
+        cov2.ise[[n]][[delta]][[m]] <- list()
+        cnt2[[n]][[delta]][[m]] <- list()
+
+        cov3.mean[[n]][[delta]][[m]] <- list()
+        cov3.ise[[n]][[delta]][[m]] <- list()
+        cnt3[[n]][[delta]][[m]] <- list()
+
+        cov4.mean[[n]][[delta]][[m]] <- list()
+        cov4.ise[[n]][[delta]][[m]] <- list()
+        cnt4[[n]][[delta]][[m]] <- list()
+
+        cov5.mean[[n]][[delta]][[m]] <- list()
+        cov5.ise[[n]][[delta]][[m]] <- list()
+        cnt5[[n]][[delta]][[m]] <- list()
+
+        cov6.mean[[n]][[delta]][[m]] <- list()
+        cov6.ise[[n]][[delta]][[m]] <- list()
+        cnt6[[n]][[delta]][[m]] <- list()
+    
+    for (idx in seq_along(v_i)){
+        summary[[n]][[delta]][[m]][[idx]] <- list()
+
+        cov1.mean[[n]][[delta]][[m]][[idx]] <- list()
+        cov1.ise[[n]][[delta]][[m]][[idx]] <- list()
+        cnt1[[n]][[delta]][[m]][[idx]] <- list()
+
+        cov2.mean[[n]][[delta]][[m]][[idx]] <- list()
+        cov2.ise[[n]][[delta]][[m]][[idx]] <- list()
+        cnt2[[n]][[delta]][[m]][[idx]] <- list()
+
+        cov3.mean[[n]][[delta]][[m]][[idx]] <- list()
+        cov3.ise[[n]][[delta]][[m]][[idx]] <- list()
+        cnt3[[n]][[delta]][[m]][[idx]] <- list()
+
+        cov4.mean[[n]][[delta]][[m]][[idx]] <- list()
+        cov4.ise[[n]][[delta]][[m]][[idx]] <- list()
+        cnt4[[n]][[delta]][[m]][[idx]] <- list()
+
+        cov5.mean[[n]][[delta]][[m]][[idx]] <- list()
+        cov5.ise[[n]][[delta]][[m]][[idx]] <- list()
+        cnt5[[n]][[delta]][[m]][[idx]] <- list()
+
+        cov6.mean[[n]][[delta]][[m]][[idx]] <- list()
+        cov6.ise[[n]][[delta]][[m]][[idx]] <- list()
+        cnt6[[n]][[delta]][[m]][[idx]] <- list()
+
+    for (mu in seq_along(v_mu)){
+        summary[[n]][[delta]][[m]][[idx]][[mu]] <- list()
+
+        cov1.ise[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cov1.mean[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cnt1[[n]][[delta]][[m]][[idx]][[mu]] <- k
+
+        cov2.ise[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cov2.mean[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cnt2[[n]][[delta]][[m]][[idx]][[mu]] <- k
+
+        cov3.ise[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cov3.mean[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cnt3[[n]][[delta]][[m]][[idx]][[mu]] <- k
+
+        cov4.ise[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cov4.mean[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cnt4[[n]][[delta]][[m]][[idx]][[mu]] <- k
+
+        cov5.ise[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cov5.mean[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cnt5[[n]][[delta]][[m]][[idx]][[mu]] <- k
+
+        cov6.ise[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cov6.mean[[n]][[delta]][[m]][[idx]][[mu]] = list()
+        cnt6[[n]][[delta]][[m]][[idx]][[mu]] <- k
+
+        i_seq = seq(k)
+        if (!is.null(i_aborted)) i_seq = seq(k)[-i_aborted]
+    for(i in i_seq){
+        temp = sims[[i]][[n]][[delta]][[m]][[idx]][[mu]]
+        if (is.atomic(temp)){
+            print(temp)
+            print(paste("n:", v_n[n], ", delta:", v_delta[delta], ", m:", v_m[m], ", C:", v_i[idx], ", i:", i, sep=""))
+            cnt1[[n]][[delta]][[m]][[idx]][[mu]] = cnt1[[n]][[delta]][[m]][[idx]][[mu]] - 1
+            i_aborted = c(i_aborted, i)
+            next
+        }
+        summary[[n]][[delta]][[m]][[idx]][[mu]][[i]] <- temp
+    }
+    for (s in seq(4)){
+        cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- list()
+        cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- 0*sims[[1]][[n]][[delta]][[m]][[idx]][[mu]]$cov1
+
+        cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- list()
+        cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[s]] <-0*sims[[1]][[n]][[delta]][[m]][[idx]][[mu]]$cov2
+
+        cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- list()
+        cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[s]] <-0*sims[[1]][[n]][[delta]][[m]][[idx]][[mu]]$cov3
+
+        cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- list()
+        cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[s]] <-0*sims[[1]][[n]][[delta]][[m]][[idx]][[mu]]$cov4
+
+        cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- list()
+        cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[s]] <-0*sims[[1]][[n]][[delta]][[m]][[idx]][[mu]]$cov5
+
+        cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- list()
+        cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[s]] <-0*sims[[1]][[n]][[delta]][[m]][[idx]][[mu]]$cov6
+        }}}}}}
+
+
+    
+    
+    # compute the values
+    for (n in seq_along(v_n)){
+    for (delta in seq_along(v_delta)){
+    for (m in seq_along(v_m)){
+    for (idx in seq_along(v_i)){
+    for (mu in seq_along(v_mu)){
+        i_seq = seq(k)
+        if (!is.null(i_aborted)) i_seq = seq(k)[-i_aborted]
+        idx_Sdelta = (which(abs(x1 - x2) <= v_delta[delta]))
+        idx_Sc = (which(abs(x1 - x2) > v_delta[delta]))
+        truth = summary[[n]][[delta]][[m]][[idx]][[mu]][[1]]$cache
+        truecovgrid = truth$truecovgrid
+    for (i in i_seq){
+
+        cov1 = summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov1
+        cov1_Sc = cov1
+        cov1_Sdelta = cov1
+        cov1_Sdelta[idx_Sc] = NaN
+        cov1_Sc[idx_Sdelta] = NaN
+        cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]]  <- cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]] + cov1_Sdelta / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]]  <- cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]] + cov1_Sc / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]]  <- cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]] + cov1 / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[1]][[i]] <- sum(((cov1-truecovgrid)^2)[idx_Sdelta])/length(truecovgrid)
+        cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[2]][[i]] <- sum(((cov1-truecovgrid)^2)[idx_Sc])/length(truecovgrid)
+        cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[3]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov1.ise
+        cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov1.ise
+        
+        cov2 = summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov2
+        cov2_Sc = cov2
+        cov2_Sdelta = cov2
+        cov2_Sdelta[idx_Sc] = NaN
+        cov2_Sc[idx_Sdelta] = NaN
+        cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]]  <- cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]] + cov2_Sdelta / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]]  <- cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]] + cov2_Sc / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]]  <- cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]] + cov2 / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[1]][[i]] <- sum(((cov2-truecovgrid)^2)[idx_Sdelta])/length(truecovgrid)
+        cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[2]][[i]] <- sum(((cov2-truecovgrid)^2)[idx_Sc])/length(truecovgrid)
+        cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[3]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov2.ise
+        cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov2.ise
+
+        cov3 = summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov3
+        cov3_Sc = cov3
+        cov3_Sdelta = cov3
+        cov3_Sdelta[idx_Sc] = NaN
+        cov3_Sc[idx_Sdelta] = NaN
+        cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]]  <- cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]] + cov3_Sdelta / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]]  <- cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]] + cov3_Sc / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]]  <- cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]] + cov3 / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[1]][[i]] <- sum(((cov3-truecovgrid)^2)[idx_Sdelta])/length(truecovgrid)
+        cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[2]][[i]] <- sum(((cov3-truecovgrid)^2)[idx_Sc])/length(truecovgrid)
+        cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[3]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov3.ise
+        cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov3.ise
+
+        cov4 = summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov4
+        cov4_Sc = cov4
+        cov4_Sdelta = cov4
+        cov4_Sdelta[idx_Sc] = NaN
+        cov4_Sc[idx_Sdelta] = NaN
+        cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]]  <- cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]] + cov4_Sdelta / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]]  <- cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]] + cov4_Sc / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]]  <- cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]] + cov4 / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[1]][[i]] <- sum(((cov4-truecovgrid)^2)[idx_Sdelta])/length(truecovgrid)
+        cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[2]][[i]] <- sum(((cov4-truecovgrid)^2)[idx_Sc])/length(truecovgrid)
+        cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[3]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov4.ise
+        cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov4.ise
+
+        cov5 = summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov5
+        cov5_Sc = cov5
+        cov5_Sdelta = cov5
+        cov5_Sdelta[idx_Sc] = NaN
+        cov5_Sc[idx_Sdelta] = NaN
+        cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]]  <- cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]] + cov5_Sdelta / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]]  <- cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]] + cov5_Sc / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]]  <- cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]] + cov5 / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[1]][[i]] <- sum(((cov5-truecovgrid)^2)[idx_Sdelta])/length(truecovgrid)
+        cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[2]][[i]] <- sum(((cov5-truecovgrid)^2)[idx_Sc])/length(truecovgrid)
+        cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[3]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov5.ise
+        cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov5.ise
+
+        cov6 = summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov6
+        cov6_Sc = cov6
+        cov6_Sdelta = cov6
+        cov6_Sdelta[idx_Sc] = NaN
+        cov6_Sc[idx_Sdelta] = NaN
+        cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]]  <- cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[1]] + cov6_Sdelta / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]]  <- cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[2]] + cov6_Sc / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]]  <- cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[3]] + cov6 / cnt1[[1]][[1]][[1]][[1]][[1]]
+        cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[1]][[i]] <- sum(((cov6-truecovgrid)^2)[idx_Sdelta])/length(truecovgrid)
+        cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[2]][[i]] <- sum(((cov6-truecovgrid)^2)[idx_Sc])/length(truecovgrid)
+        cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[3]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov6.ise
+        cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]][[i]] <- summary[[n]][[delta]][[m]][[idx]][[mu]][[i]]$cov6.ise
+
+
+    }
+    for (s in seq(3)){
+        temp = unlist(cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- c(mean(temp, na.rm=T), sd(temp, na.rm=T))
+
+        temp = unlist(cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- c(mean(temp, na.rm=T), sd(temp, na.rm=T))
+        
+        temp = unlist(cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- c(mean(temp, na.rm=T), sd(temp, na.rm=T))
+        
+        temp = unlist(cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- c(mean(temp, na.rm=T), sd(temp, na.rm=T))
+
+        temp = unlist(cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- c(mean(temp, na.rm=T), sd(temp, na.rm=T))
+
+        temp = unlist(cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]] <- c(mean(temp, na.rm=T), sd(temp, na.rm=T))
+    }
+    for (s in 4){
+        temp = unlist(cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]])
+        cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]] <- c(median(temp, na.rm=T), IQR(temp, na.rm=T))
+        m_idx = which.min(temp - median(temp, na.rm = T))
+        cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]]  <- summary[[n]][[delta]][[m]][[idx]][[mu]][[m_idx]]$cov1
+
+        temp = unlist(cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]])
+        cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]] <- c(median(temp, na.rm=T), IQR(temp, na.rm=T))
+        m_idx = which.min(temp - median(temp, na.rm = T))
+        cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]]  <- summary[[n]][[delta]][[m]][[idx]][[mu]][[m_idx]]$cov2
+        
+        temp = unlist(cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]] <- c(median(temp, na.rm=T), IQR(temp, na.rm=T))
+        m_idx = which.min(temp - median(temp, na.rm = T))
+        cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]]  <- summary[[n]][[delta]][[m]][[idx]][[mu]][[m_idx]]$cov3
+        
+        temp = unlist(cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]] <- c(median(temp, na.rm=T), IQR(temp, na.rm=T))
+        m_idx = which.min(temp - median(temp, na.rm = T))
+        cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]]  <- summary[[n]][[delta]][[m]][[idx]][[mu]][[m_idx]]$cov4
+
+        temp = unlist(cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]] <- c(median(temp, na.rm=T), IQR(temp, na.rm=T))
+        m_idx = which.min(temp - median(temp, na.rm = T))
+        cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]]  <- summary[[n]][[delta]][[m]][[idx]][[mu]][[m_idx]]$cov5
+
+        temp = unlist(cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]])
+        cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[4]] <- c(median(temp, na.rm=T), IQR(temp, na.rm=T))
+        m_idx = which.min(temp - median(temp, na.rm = T))
+        cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]]  <- summary[[n]][[delta]][[m]][[idx]][[mu]][[m_idx]]$cov6
+    }
+    }}}}}
+
+    # print out the simulation outputs
+    if (print_cov) {
+        print("covariance")
+        cov.mat <- matrix(NA,0, 12)
+        for (s in v_plot_s){
+        for (idx in c(1,3,2)){
+        for (delta in seq_along(v_delta)){
+        for (m in seq_along(v_m)){
+        for (n in seq_along(v_n)){
+        for (mu in seq_along(v_mu)){
+            param <- list(n = v_n[n], delta = v_delta[delta], m = v_m[m], idx = v_i[idx], sige2=v_sige2[idx], sigx=v_C[[idx]], mu = v_mu[[mu]], grid = regular.grid())
+            if (plot_cov && (v_n[n] %in% v_plot_n) && (v_delta[delta] %in% v_plot_delta) && (v_i[idx] %in% v_plot_i) && (mu %in% v_plot_mu)){
+                cov_interact(regular.grid(), truth = summary[[n]][[delta]][[m]][[idx]][[mu]][[1]]$cache$truecovgrid , cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]], cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]], cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]], cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]], cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]], cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]] )
+            }
+            cov.mat <- rbind(cov.mat, c(cov6.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]], cov1.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]],cov2.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]],cov3.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]],cov4.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]],cov5.ise[[n]][[delta]][[m]][[idx]][[mu]][[s]]))
+        }}}}}}
+        print(xtable(10*cov.mat, digits=2))
+    }
+
+    #if (print_mean) {
+    #    print("mean")
+    #    mean.mat <- matrix(NA,0, 8)
+    #    for (idx in seq_along(v_i)){
+    #    for (delta in seq_along(v_delta)){
+    #    for (m in seq_along(v_m)){
+    #    for (n in seq_along(v_n)){
+    #    for (mu in seq_along(v_mu)){
+    #        param <- list(n = v_n[n], delta = v_delta[delta], m = v_m[m], idx = v_i[idx], sige2=v_sige2[idx], sigx=v_C[[idx]], mu = v_mu[[mu]], grid = regular.grid())
+    #        if (plot_mean && (v_n[n] %in% v_plot_n) && (v_delta[delta] %in% v_plot_delta) && (v_i[idx] %in% v_plot_i) && (mu %in% v_plot_mu)){
+    #            grid_illustration(param, mu1.mean[[n]][[delta]][[m]][[idx]][[mu]], mu2.mean[[n]][[delta]][[m]][[idx]][[mu]], mu3.mean[[n]][[delta]][[m]][[idx]][[mu]], mu4.mean[[n]][[delta]][[m]][[idx]][[mu]])
+    #        }
+    #        mean.mat <- rbind(mean.mat, round(c(mu.ise1[[n]][[delta]][[m]][[idx]][[mu]],mu.ise2[[n]][[delta]][[m]][[idx]][[mu]],mu.ise3[[n]][[delta]][[m]][[idx]][[mu]],mu.ise4[[n]][[delta]][[m]][[idx]][[mu]]), 3))
+    #    }}}}}
+    #    print(xtable(mean.mat, digits=3))
+    #}
+    out = list(cov1.mean=cov1.mean, cov2.mean=cov2.mean, cov3.mean=cov3.mean, cov4.mean=cov4.mean, cov5.mean=cov5.mean, cov6.mean=cov6.mean)
+    return(out)
+}
+```
+
+```{r, params}
+v_n <- c(100, 200)
+v_delta <- c(0.2, 0.4, 0.6)
+
+v_C <- c(C.fourier, C.2, C.matern);v_sige2 <- c(2.474404, 0.1341507, 2.015252)
+v_i = seq_along(v_C)
+v_mu <- c(mu0f)
+k <- 100
+```
+
+```{r, random}
+k <- 100
+v_m = c(4)
+print_cov = TRUE; plot_cov = T
+v_plot_s = c(4)
+
+
+v_plot_n <- c(200)
+v_plot_delta <- c(0.6)
+v_plot_m = c(4)
+v_plot_i = c(2)
+v_plot_mu <- c(1)
+
+
+out <- regular.summary(random_design)
+
+```
+
+```{r, sparse_regular}
+k <- 100
+v_m = c(4)
+
+#plotting args
+v_plot_s = c(4)
+print_cov = TRUE; plot_cov = T 
+v_plot_n <- c(200)
+v_plot_delta <- c(0.2)
+v_plot_m = c(4)
+v_plot_i = c(2)
+v_plot_mu <- c(1)
+
+out <- regular.summary(regular_sparse_design)
+```
+
+```{r, dense_regular}
+k <- 100
+v_m = c(20)
+
+#plotting args
+v_plot_s = c(4)
+print_cov = TRUE; plot_cov = TRUE
+v_plot_n <- c(200)
+v_plot_delta <- c(0.4)
+v_plot_m = c(20)
+v_plot_i = c(2)
+v_plot_mu <- c(1)
+
+out <- regular.summary(dense)
+```
+
+
+```{r, save}
+#plotting args
+v_plot_s = c(4)
+print_cov = TRUE; plot_cov = TRUE
+v_plot_n <- c(200)
+v_plot_delta <- c(0.2)
+v_plot_m = c(4)
+v_plot_i = c(3)
+v_plot_mu <- c(1)
+
+
+# retrieve values
+grid = regular.grid()
+half_idx = seq(1,100,2)
+sim_grid = grid[half_idx]
+
+if (print_cov) {
+    print("covariance")
+    for (s in v_plot_s){
+    for (idx in c(1,3,2)){
+    for (delta in seq_along(v_delta)){
+    for (m in seq_along(v_m)){
+    for (n in seq_along(v_n)){
+    for (mu in seq_along(v_mu)){
+        param <- list(n = v_n[n], delta = v_delta[delta], m = v_m[m], idx = v_i[idx], sige2=v_sige2[idx], sigx=v_C[[idx]], mu = v_mu[[mu]], grid = sim_grid)
+        if (plot_cov && (v_n[n] %in% v_plot_n) && (v_delta[delta] %in% v_plot_delta) && (v_i[idx] %in% v_plot_i) && (mu %in% v_plot_mu)){
+            cov_interact(sim_grid, truth = sim.truth(param)$truecovgrid , out$cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx], out$cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx], out$cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx], out$cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx], out$cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx], out$cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx] )
+            fit1 = out$cov1.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx]
+            fit2 = out$cov2.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx]
+            fit3 = out$cov3.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx]
+            fit4 = out$cov4.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx]
+            fit5 = out$cov5.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx]
+            fit6 = out$cov6.mean[[n]][[delta]][[m]][[idx]][[mu]][[4]][half_idx, half_idx]
+        }
+    }}}}}}
+}
+
+
+writeMat(con="sim_grid.mat", x=sim_grid)
+
+writeMat(con="fourier_fit1.mat", x=fit1)
+writeMat(con="fourier_fit2.mat", x=fit2)
+writeMat(con="fourier_fit3.mat", x=fit3)
+writeMat(con="fourier_fit4.mat", x=fit4)
+writeMat(con="fourier_fit5.mat", x=fit5)
+writeMat(con="fourier_fit6.mat", x=fit6)
+
+writeMat(con="SP_fit1.mat", x=fit1)
+writeMat(con="SP_fit2.mat", x=fit2)
+writeMat(con="SP_fit3.mat", x=fit3)
+writeMat(con="SP_fit4.mat", x=fit4)
+writeMat(con="SP_fit5.mat", x=fit5)
+writeMat(con="SP_fit6.mat", x=fit6)
+
+writeMat(con="nonsmooth_fit1.mat", x=fit1)
+writeMat(con="nonsmooth_fit2.mat", x=fit2)
+writeMat(con="nonsmooth_fit3.mat", x=fit3)
+writeMat(con="nonsmooth_fit4.mat", x=fit4)
+writeMat(con="nonsmooth_fit5.mat", x=fit5)
+writeMat(con="nonsmooth_fit6.mat", x=fit6)
+
+```

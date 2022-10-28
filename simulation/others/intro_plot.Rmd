@@ -1,0 +1,471 @@
+
+```{r}
+devtools::load_all()
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(R.matlab)
+library(matrixcalc)
+library(Matrix)
+
+# multiplot function
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+    library(grid)
+
+    # Make a list from the ... arguments and plotlist
+    plots <- c(list(...), plotlist)
+
+    numPlots = length(plots)
+
+    # If layout is NULL, then use 'cols' to determine layout
+    if (is.null(layout)) {
+      # Make the panel
+      # ncol: Number of columns of plots
+      # nrow: Number of rows needed, calculated from # of cols
+      layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                      ncol = cols, nrow = ceiling(numPlots/cols))
+    }
+
+  if (numPlots==1) {
+      print(plots[[1]])
+
+    } else {
+      # Set up the page
+      grid.newpage()
+      pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+      # Make each plot, in the correct location
+      for (i in 1:numPlots) {
+        # Get the i,j matrix positions of the regions that contain this subplot
+        matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+        print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                        layout.pos.col = matchidx$col))
+      }
+    }
+}
+```
+
+
+```{r, regular design functional snippets}
+# plot regular design functional snippets
+regular.illu <- function(params){
+  sims <- sim.regular.full(params)
+
+  long.data <- sims$data
+  long.full <- sims$data.full
+
+  # spaghetti plot
+  long10 = long.data[long.data$subj %in% seq(10),]
+  full10 = long.full[long.full$subj %in% seq(10),]
+  pp <- ggplot(full10,aes(x=argvals,y=y, group=subj))
+  qq1 <- pp + geom_point(color='grey', size=0.1) +
+    geom_line(data=long10, color='black') +
+    xlim(0, 1) + xlab("t") + ylab("X(t)") + theme_classic()
+  print(qq1)
+
+
+  obs_grid = sort(unique(unlist(sims$t)))
+  grididx <- which(!obs_grid %in% long.data[long.data$subj == 1,]$argvals)
+  long.data <- data.frame(argvals=c(long.data$argvals, obs_grid[grididx]), subj=c(long.data$subj, rep(1, length(grididx))), y=c(long.data$y, rep(NA, length(grididx))))
+  long.data <- long.data[order(long.data$argvals),]
+  wide.data <- as.matrix(reshape(long.data, v.names="y",idvar="subj",
+                      timevar="argvals",direction="wide"))[,-1]
+
+  temp = wide.data
+  temp[is.na(temp)] = 0
+  temp = crossprod(temp)
+
+  idx = which(temp != 0)
+  x = c(matrix(rep(obs_grid, length(obs_grid)), ncol = length(obs_grid)))[idx]
+  y = c(matrix(rep(obs_grid, length(obs_grid)), nrow = length(obs_grid), byrow = T))[idx]
+  pp <- ggplot(data.frame(x=x, y=y), aes(x=x,y=y))
+  qq2 <- pp + geom_point(shape=18)+
+    xlim(0, 1) + xlab("s") + ylab("t") + theme_classic()
+  print(qq2)
+  #plot(x,y, xlim=c(1,0), ylim=c(1,0), pch=43)
+
+  pdf("regular_illustration.pdf",width=8, height = 4)
+  multiplot(qq1,qq2,cols=2)
+  dev.off()
+}
+set.seed(20220327)
+params = list(n=100, delta=0.2, m_avg=4, sige2=0, sigx=C.matern, mu=mu2f, grid=regular.grid())
+regular.illu(params)
+```
+
+
+```{r, random design functional snippets}
+# plot random design functional snippets
+random.illu <- function(params){
+
+  sims <- sim.random.full(params)
+
+  long.data <- sims$data
+  long.full <- sims$data.full
+
+  # spaghetti plot
+  long10 = long.data[long.data$subj %in% seq(10),]
+  full10 = long.full[long.full$subj %in% seq(10),]
+  pp <- ggplot(full10,aes(x=argvals,y=y, group=subj))
+  qq1 <- pp + geom_line(color='grey', linetype = "dotted", size=0.7) +
+    geom_line(data=long10, color='black') + #geom_point(data=long10, color='black') +
+    xlim(0, 1) + xlab("t") + ylab("X(t)") + theme_classic()
+  print(qq1)
+
+  obs_grid = sort(unique(unlist(sims$t)))
+  grididx <- which(!obs_grid %in% long.data[long.data$subj == 1,]$argvals)
+  long.data <- data.frame(argvals=c(long.data$argvals, obs_grid[grididx]), subj=c(long.data$subj, rep(1, length(grididx))), y=c(long.data$y, rep(NA, length(grididx))))
+  long.data <- long.data[order(long.data$argvals),]
+  wide.data <- as.matrix(reshape(long.data, v.names="y",idvar="subj",
+                      timevar="argvals",direction="wide"))[,-1]
+
+  temp = wide.data
+  temp[is.na(temp)] = 0
+  temp = crossprod(temp)
+
+  idx = which(temp != 0)
+  x = c(matrix(rep(obs_grid, length(obs_grid)), ncol = length(obs_grid)))[idx]
+  y = c(matrix(rep(obs_grid, length(obs_grid)), nrow = length(obs_grid), byrow = T))[idx]
+  pp <- ggplot(data.frame(x=x, y=y), aes(x=x,y=y))
+  qq2 <- pp + geom_point(shape=18)+
+    xlim(0, 1) + xlab("s") + ylab("t") + theme_classic()
+  print(qq2)
+  #plot(x,y, xlim=c(1,0), ylim=c(1,0), pch=43)
+
+  pdf("random_illustration.pdf",width=8, height = 4)
+  multiplot(qq1,qq2,cols=2)
+  dev.off()
+}
+set.seed(20220327)
+params = list(n=100, delta=0.2, m_avg=4, sige2=0, sigx=C.matern, mu=mu1f, grid=regular.grid())
+random.illu(params)
+```
+
+
+```{r, sparse functional data}
+# plot sparse functional data
+sparse.illu <- function(params){
+  sims <- sim.random.full(params)
+
+  long.data <- sims$data
+  long.full <- sims$data.full
+
+  # spaghetti plot
+  long10 = long.data[long.data$subj %in% seq(10),]
+  full10 = long.full[long.full$subj %in% seq(10),]
+  pp <- ggplot(full10,aes(x=argvals,y=y, group=subj))
+  qq1 <- pp + geom_line(color='grey', linetype = "dotted", size=0.7) +
+    geom_point(data=long10, color='black', size=1) +
+    xlim(0, 1) + xlab("t") + ylab("X(t)") + theme_classic()
+  print(qq1)
+
+
+  obs_grid = sort(unique(unlist(sims$t)))
+  grididx <- which(!obs_grid %in% long.data[long.data$subj == 1,]$argvals)
+  long.data <- data.frame(argvals=c(long.data$argvals, obs_grid[grididx]), subj=c(long.data$subj, rep(1, length(grididx))), y=c(long.data$y, rep(NA, length(grididx))))
+  long.data <- long.data[order(long.data$argvals),]
+  wide.data <- as.matrix(reshape(long.data, v.names="y",idvar="subj",
+                      timevar="argvals",direction="wide"))[,-1]
+
+  temp = wide.data
+  temp[is.na(temp)] = 0
+  temp = crossprod(temp)
+
+  idx = which(temp != 0)
+  x = c(matrix(rep(obs_grid, length(obs_grid)), ncol = length(obs_grid)))[idx]
+  y = c(matrix(rep(obs_grid, length(obs_grid)), nrow = length(obs_grid), byrow = T))[idx]
+  pp <- ggplot(data.frame(x=x, y=y), aes(x=x,y=y))
+  qq2 <- pp + geom_point(shape=18)+
+    xlim(0, 1) + xlab("s") + ylab("t") + theme_classic()
+  print(qq2)
+  # plot(x,y, xlim=c(1,0), ylim=c(1,0), pch=43)
+
+  pdf("sparse_illustration.pdf",width=8, height = 4)
+  multiplot(qq1,qq2,cols=2)
+  dev.off()
+}
+set.seed(20220327)
+params = list(n=100, delta=1, m_avg=4, sige2=0, sigx=C.matern, mu=mu1f, grid=regular.grid())
+sparse.illu(params)
+```
+
+
+```{r, 3d plot}
+require(plot3D)
+library(plotly)
+par(mfrow = c(1,1))
+par(pty = "s")
+
+params = list(n=100, delta=0.2, m_avg=4, sige2=0, sigx=C.bspline, mu=mu1f, grid=regular.grid())
+truth = sim.truth(params)
+grid = regular.grid()
+plot_ly(z = ~truth$truecovgrid, x = ~grid, y = ~grid, type='surface')
+fig <- fig %>% add_surface()
+fig
+
+persp3D(z = truth$truecovgrid, theta = -30, phi = 20)
+ribbon3D(z = truth$truecovgrid, theta = 40)
+
+# 2 D local polynomial kernel smoother
+out <- fdapace::Lwls2D(1,kern="epan",cbind(x,y),temp[temp!=0],win = NULL,
+xout1 = NULL,xout2 = NULL,xout = cbind(x,y),subset = NULL,crosscov = FALSE)
+length(out)
+smooth.temp = temp
+smooth.temp[temp != 0] = out
+
+persp3D(z = smooth.temp, theta = 0)
+
+```
+
+```{r, design}
+bmd = read.csv('simulation/spnbmd.csv', header=T)
+bmd <- within(bmd, 
+{  idnum <- factor(idnum)
+   gender <- factor(sex)
+})
+# subsetint with dplyr
+bmd = bmd %>% group_by(idnum) %>% filter(n()>=2)
+
+# spaghetti plot
+bmd10 = bmd[bmd$idnum %in% seq(10),]
+pp <- ggplot(bmd, aes(x=age, y=spnbmd, group=idnum))
+qq1 <- pp + geom_line(color='grey', size=0.3) + geom_point(shape=1, color='gray') +
+  geom_line(data=bmd10, color='black') + geom_point(data=bmd10, shape=1, color='black') +
+  xlim(8.8, 26.2) + xlab("Age") + ylab("BMD") + theme_classic()
+print(qq1)
+
+obs_grid = sort(unique(unlist(bmd$age)))
+grididx <- which(!obs_grid %in% bmd[bmd$idnum == 1,]$age)
+long.data <- data.frame(argvals=c(bmd$age, obs_grid[grididx]), subj=c(bmd$idnum, rep(1, length(grididx))), y=c(bmd$spnbmd, rep(NA, length(grididx))))
+long.data <- long.data[order(long.data$argvals),]
+wide.data <- as.matrix(reshape(long.data, v.names="y",idvar="subj",
+                    timevar="argvals",direction="wide"))[,-1]
+temp = wide.data
+temp[is.na(temp)] = 0
+temp = crossprod(temp)
+idx = which(temp != 0)
+x = c(matrix(rep(obs_grid, length(obs_grid)), ncol = length(obs_grid)))[idx]
+y = c(matrix(rep(obs_grid, length(obs_grid)), nrow = length(obs_grid), byrow = T))[idx]
+
+pp <- ggplot(data.frame(x=x, y=y), aes(x=x,y=y))
+qq2 <- pp + geom_point()+
+  xlim(8.8, 26.2) + xlab("Age") + ylab("Age") + theme_classic()
+print(qq2)
+
+
+
+
+pdf("bmd_curve.pdf",width=5, height = 5)
+print(qq1)
+dev.off()
+
+pdf("bmd_design.pdf",width=5, height = 5)
+print(qq2)
+dev.off()
+
+pdf("bone_curve_design.pdf",width=10, height = 5)
+multiplot(qq1,qq2,cols=2)
+dev.off()
+
+
+
+```
+
+```{r, spnbmd EDA}
+bmd = read.csv('simulation/spnbmd.csv', header=T)
+bmd <- within(bmd, 
+{  idnum <- factor(idnum)
+   gender <- factor(sex)
+})
+# subsetint with dplyr
+bmd = bmd %>% group_by(idnum) %>% filter(n()>=2)
+# 280 subjects with m=3.07 ranged [8.8, 26.2] used in Lin's paper
+length(unique(bmd$idnum))
+range(bmd$age)
+mean((bmd %>% count(idnum))$n)
+range((bmd$age - 8.7) / (26.3-8.7))
+
+# 117 subjects ranged [9.5, 21] used in Delaigle's paper
+bmd.female = bmd[which(bmd$gender=="fem"),]
+bmd.female = bmd.female[which((bmd.female$age <= 21) & (bmd.female$age >= 9.5)),]
+bmd.female = bmd.female %>% group_by(idnum) %>% filter(n()>=2)
+length(unique(bmd.female$idnum))
+range(bmd.female$age)
+
+
+# spaghetti plot of the data
+pp <- ggplot(bmd, aes(x=age,y=spnbmd, group=idnum))
+pp <- pp +  geom_line(color='gray') + geom_point(shape=18) + xlab("age") + ylab("spnbmd") + theme_classic()
+
+
+fem <- ggplot(bmd.female, aes(x=age,y=spnbmd, group=idnum))
+fem <- fem +  geom_line(color='gray') + geom_point(shape=18)+
+  xlim(9.5, 21) + xlab("age") + ylab("spnbmd") + theme_classic()
+
+print(pp)
+print(fem)
+```
+
+```{r, rawconstruct function}
+raw.construct <- function(data,include.diag=TRUE){
+  
+  y <- data$y
+  t <- data$argvals
+  subj <- data$subj
+  
+  subj_unique <- unique(subj)
+  n <- length(subj_unique)
+  C <- c()
+  st <- matrix(NA,ncol=2,nrow=0)
+  N <- c()
+  N2 <- c()
+  n0 <- 0
+  W <- list(length=n)
+  for(i in 1:n){
+    
+    r1 <- y[subj==subj_unique[i]]
+    t1 <- t[subj==subj_unique[i]]
+    m1 <- length(t1)
+    n0 <- n0 + 1
+    if(m1>1){
+      if(include.diag) {
+        N2 <-c(N2,m1*(m1+1)/2)  # <------
+        sel = 1:N2[n0]
+      }
+      
+      if(!include.diag) {
+        N2 <-c(N2,m1*(m1-1)/2)  # <------
+        sel = setdiff(1:(m1*(m1+1)/2), c(1,1 + cumsum(m1:1)[1:(m1-1)]))
+      }
+      
+      st <- rbind(st,cbind(vech(kronecker(t1,t(rep(1,m1)))),
+                           vech(kronecker(rep(1,m1),t(t1))))[sel,])
+      C <- c(C,vech(kronecker(r1,t(r1)))[sel]) 
+      
+
+      N <- c(N,m1)
+      # N2 <-c(N2,m1^2)
+
+      W[[i]] <- sparseMatrix(1:N2[n0],1:N2[n0],x=rep(1,N2[n0]))# <----
+      #if(include.diag) diag(W[[i]])[c(1,1 + cumsum(m1:1)[1:(m1-1)])] <- 1/2
+    }## for if(m1>1)
+    if(m1==1){
+      if(include.diag){
+      N2 <- c(N2,1)
+      st <- rbind(st,c(t1,t1))
+      C <- c(C,r1^2)
+      N <- c(N,1)
+      W[[i]] <- matrix(1,1,1)
+      }
+      if(!include.diag){
+        N2 <- c(N2,0)
+        N <- c(N,1)
+        W[[i]] <- NULL
+      }
+    }
+  }##for i
+  
+  res <- list("C" = C,
+              "st" = st,
+              "N" = N,
+              "N2" = N2,
+              "W" = W,
+              "n0" = n0)
+  return(res)
+}
+```
+
+```{r, spnbmd fit}
+bmd = read.csv('simulation/spnbmd.csv', header=T)
+bmd <- within(bmd, 
+{  idnum <- factor(idnum)
+   gender <- factor(sex)
+})
+# subsetint with dplyr
+bmd = bmd %>% group_by(idnum) %>% filter(n()>=2)
+bmd$age = (bmd$age - 8.7) / (26.3-8.7)
+grid = seq(0.005, 0.995, length=50)
+
+# demean using FACE
+dat = data.frame(argvals=bmd$age, subj=bmd$idnum, y=bmd$spnbmd)
+fit5 = face::face.sparse(dat, argvals.new=grid)
+bmd$spnbmd = bmd$spnbmd - fit5$mu.hat
+
+
+# forming data list
+ts = bmd$age
+ys = bmd$spnbmd
+ids = bmd$idnum
+unique_ids = unique(ids)
+t = lapply(unique_ids, function(id) ts[which(ids==id)])
+y = lapply(unique_ids, function(id) ys[which(ids==id)])
+dat = data.frame(argvals=ts, subj=ids, y=ys)
+
+# delta is estimated to be 0.25 (4.3 years)
+estimate.delta(t) * (26.3-8.7) / (26.2-8.8)
+
+# construct raw covariance
+bmd_raw = unlist(lapply(y, function(s) tcrossprod(s)))
+bmd_x   = unlist(lapply(t, function(s) pracma::meshgrid(s)$X* (26.3-8.7) + 8.7))
+bmd_y   = unlist(lapply(t, function(s) pracma::meshgrid(s)$Y* (26.3-8.7) + 8.7))
+fig <- plot_ly(x = ~bmd_x, y = ~bmd_y, z = ~bmd_raw,
+               marker = list(color = ~bmd_raw, colorscale = c('#FFE1A1', '#683531'), showscale = TRUE))
+fig <- fig %>% add_markers()
+fig
+
+pp <- ggplot(data.frame(x=bmd_x, y=bmd_y), aes(x=bmd_x,y=bmd_y))
+qq2 <- pp + geom_point(shape=18)+
+  xlim(8.8, 26.2) + xlab("Age") + ylab("Age") + theme_classic()
+print(qq2)
+
+
+
+
+start_time <- proc.time()
+system.time(fit1 <- covfunc(t, y, method='BE', lam=0, ext=0, domain=c(0,1), newt=grid, mu=mu0f))
+system.time(fit2 <- covfunc(t, y, method='FOURIER', domain=c(0,1), newt=grid, mu=mu0f))
+system.time(fit3 <- covfunc(t, y, method='SP', domain=c(0,1), newt=grid, mu=mu0f))
+system.time(fit4 <- covfunc(t, y, method='PACE', kernel='gauss', newt=grid, mu=mu0f))
+system.time(fit5 <- face::face.sparse(dat, argvals.new = grid, center=FALSE))
+system.time(fit6 <- tcrossprod(getA1_new_eig(Lt=t, Ly=y, newt=grid, mu=mu0f)))
+print(proc.time() - start_time)
+
+grid = grid * (26.3-8.7) + 8.7
+print(plot_ly(z = ~fit1$fitted, x = ~grid, y = ~grid, type='surface'))
+print(plot_ly(z = ~fit2$fitted, x = ~grid, y = ~grid, type='surface'))
+print(plot_ly(z = ~fit3$fitted, x = ~grid, y = ~grid, type='surface'))
+print(plot_ly(z = ~fit4$fitted, x = ~grid, y = ~grid, type='surface'))
+print(plot_ly(z = ~fit5$Chat.new, x = ~grid, y = ~grid, type='surface'))
+print(plot_ly(z = ~fit6, x = ~grid, y = ~grid, type='surface'))
+
+
+writeMat(con="bmd_fit1.mat", x=100*fit1$fitted)
+writeMat(con="bmd_fit2.mat", x=100*fit2$fitted)
+writeMat(con="bmd_fit3.mat", x=100*fit3$fitted)
+writeMat(con="bmd_fit4.mat", x=100*fit4$fitted)
+writeMat(con="bmd_fit5.mat", x=100*fit5$Chat.new)
+writeMat(con="bmd_fit6.mat", x=100*fit6)
+writeMat(con="bmd_grid.mat", x=grid)
+
+writeMat(con="bmd_x.mat", x=bmd_x)
+writeMat(con="bmd_y.mat", x=bmd_y)
+writeMat(con="bmd_raw.mat" , x=bmd_raw)
+
+```
+
+```{r, Matlab}
+grid = seq(0,1, length=50)
+params_fourier = list(n=100, delta=0.2, m_avg=4, sige2=0.2722285, sigx=C.fourier, mu=mu0f, grid=grid)
+params_2 = list(n=50, delta=0.2, m_avg=4, sige2=0.5916025, sigx=C.2, mu=mu0f, grid=grid)
+params_matern = list(n=50, delta=0.2, m_avg=4, sige2=0.6890763, sigx=C.matern, mu=mu0f, grid=grid)
+truth_fourier = sim.truth(params_fourier)
+truth_bspline = sim.truth(params_2)
+truth_matern  = sim.truth(params_matern )
+
+writeMat(con="truth_fourier.mat", x=truth_fourier$truecovgrid)
+writeMat(con="truth_2.mat", x=truth_bspline$truecovgrid)
+writeMat(con="truth_matern.mat" , x=truth_matern$truecovgrid)
+
+```
+
