@@ -47,7 +47,7 @@
 #' @param bw bandwidth or bandwidth candidates
 #' @param delta the snippet parameter, only used for irregular design
 #' @keywords internal
-cov.pace <- function(Lt,Ly,bw=NULL,newt=NULL,mu=NULL,tuning='GCV',weig='SUBJ',kernel='epanechnikov',delta=NULL,
+cov.pace <- function(Lt,Ly,bw=NULL,newt=NULL,mu=NULL,tuning='GCV',weig='OBS',kernel='epanechnikov',delta=NULL,
                      binData='AUTO',numBins=NULL,nRegGrid=51)
 {
     if(!is.list(Lt) || !is.list(Ly)) stop('regular design is not supported yet')
@@ -156,11 +156,10 @@ GetSmoothedCovarSurface <- function(covobj, obsGrid, regGrid, kernel='epanechnik
     return(res)
 }
 
-
 # The following function is adapted from fdapace package
 GCVLwls2DV2 <- function(obsGrid, regGrid, kernel, rcov, Lt, bw, delta) {
 
-    verbose <- T
+    verbose <- F
 
     ## Get minimal bandwidth and range
     r <- diff(range(obsGrid)) * sqrt(2) # sqrt(2) because the window is circular.
@@ -270,11 +269,10 @@ GCVLwls2DV2 <- function(obsGrid, regGrid, kernel, rcov, Lt, bw, delta) {
     } # The "while (!leave && iter < maxIter) ..." end here
 
     ret <- list(h=opth, gcv=optgcv, minBW=minBW)
-    message(sprintf('optimal h=%f',opth))
+    # message(sprintf('optimal h=%f',opth))
     return(ret)
 
 }
-
 
 # The following function is adapted from fdapace package
 getGCVscoresV2 <- function(h, kernel, xin, yin, regGrid, delta, win=NULL) {
@@ -294,7 +292,7 @@ getGCVscoresV2 <- function(h, kernel, xin, yin, regGrid, delta, win=NULL) {
 
 
     # workaround for degenerate case.
-    if (any(is.nan(fit)) || !is.matrix(fit))
+    if (any(is.na(fit)) || !is.matrix(fit))
         return(Inf)
 
 
@@ -302,7 +300,7 @@ getGCVscoresV2 <- function(h, kernel, xin, yin, regGrid, delta, win=NULL) {
     obsFit <- pracma::interp2(regGrid, regGrid, fit, xin[, 1], xin[, 2])
 
     idx <- !is.infinite(obsFit)
-    idx <- !is.nan(obsFit) & idx
+    idx <- !is.na(obsFit) & idx
 
     # residual sum of squares
     res <- sum((yin[idx] - obsFit[idx]) ^ 2 * win[idx])
@@ -424,7 +422,6 @@ GetBins <-  function(x,y, xx){
     zList = list(newy = newy, count = count)
     return( zList );
 }
-
 
 GetBinnedDataset <- function (Ly, Lt, numBins=NULL){
 

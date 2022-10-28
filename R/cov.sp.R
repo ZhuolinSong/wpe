@@ -175,7 +175,7 @@ estimate.theta <- function(Lt,Ly,
         }
         
         # set up initial value for optimization
-        if(is.null(theta.lb)) theta.lb <- rep(-Inf,D)
+        if(is.null(theta.lb)) theta.lb <- rep(1e-18,D)
         if(is.null(theta.ub)) theta.ub <- rep(Inf,D)
         
         if(is.null(theta0)){
@@ -222,7 +222,7 @@ estimate.theta <- function(Lt,Ly,
         
         
         # set up initial value for optimization
-        if(is.null(theta.lb)) theta.lb <- rep(-Inf,D)
+        if(is.null(theta.lb)) theta.lb <- rep(0,D)
         if(is.null(theta.ub)) theta.ub <- rep(Inf,D)
         
         Q <- function(theta){

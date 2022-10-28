@@ -8,7 +8,7 @@ set.seed(s_seed)
 
 v_n <- c(50, 200)
 v_del <- c(0.2, 0.5)
-v_C <- c("fourier", "matern", "bspline");v_sige2 <- c(6.292991, 0.6890763, 0.001649281)
+v_C <- c("fourier", "bspline", "matern");v_sige2 <- c(6.292991, 0.6890763, 0.001649281)
 v_mu <- c(1)
 k <- 100
 

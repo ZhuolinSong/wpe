@@ -1,8 +1,9 @@
 #' Covariance estimation by basis expansion
 #' @param Lt a list (for irregular design) or a vector (for regular design)
 #' @param Ly a list (for irregular design) or a matrix (for regular design). If \code{Ly} is a matrix, then \code{ncol(Ly)} must be equal to \code{length(Lt)}
+#' @param delta the snippet parameter, only used for irregular design
 #' @keywords internal
-cov.basis <- function(Lt,Ly,p=NULL,lam=NULL,ext=NULL,newt=NULL,mu=NULL,tuning='lle',weig=NULL,maxIt=3,domain=c(0,1)){
+cov.basis <- function(Lt,Ly,p=NULL,lam=NULL,ext=NULL,newt=NULL,mu=NULL,tuning='lle',weig=NULL,maxIt=3,domain=c(0,1), delta=NULL){
     if(is.null(p)) p <- seq(5,7)
     if(is.null(lam)) lam <- 10^seq(-8,1,length.out=10)
     if(is.null(ext)) ext <- c(0,0.05,0.1)
@@ -39,9 +40,14 @@ cov.basis <- function(Lt,Ly,p=NULL,lam=NULL,ext=NULL,newt=NULL,mu=NULL,tuning='l
 
     if(is.list(Ly) && is.list(Lt)){ # irregular design
         Lr <- lapply(1:n,function(i){
-            mui <- predict(mu,Lt[[i]])
+            if (is.function(mu)) {
+                mui <- mu(Lt[[i]])
+            } else {
+                mui <- predict(mu,Lt[[i]])
+            }
             (Ly[[i]]-mui) %*% t(Ly[[i]]-mui)
         })
+        
         delta <- estimate.delta(Lt)
 
         R$Lr <- Lr

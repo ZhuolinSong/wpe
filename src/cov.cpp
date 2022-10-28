@@ -290,10 +290,10 @@ Eigen::MatrixXd csmoothcov( const Eigen::Map<Eigen::VectorXd> & h,
                     idx.push_back(y->second);
                 }
                 
-                if(idx.size() < 5)
-                {
-                    Rcpp::stop("Less than 5 points in the local window.");
-                }
+                // if(idx.size() < 5)
+                // {
+                //     Rcpp::stop("Less than 5 points in the local window.");
+                // }
                 
                 
                 // prepare data for 2D local polynomial regression

@@ -20,7 +20,7 @@ dense_four <- mclapply(v_n, n_loop <- function(n){
         sige = v_sige2[match(sigx, v_C)]
         sim <- sim1(n, sige, del, m_avg = 20, sigx=sigx, mu=mu)
         grid <- regular.grid()
-        fit3 = covfunc(sim$t, sim$y, method='FOURIER', newt=grid, ext=0.1, p=10, domain=c(0,1))
+        fit3 = covfunc(sim$t, sim$y, method='FOURIER', newt=grid, ext=0, p=10, domain=c(0,1))
 
         return(list(data=sim$data, truemugrid=sim$truemugrid, truecovgrid=sim$truecovgrid,
                     mufour = fit3$mu$fitted, Cfour = fit3$fitted))

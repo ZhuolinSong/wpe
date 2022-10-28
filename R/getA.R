@@ -1,40 +1,41 @@
 # The algorithm with cross-validation, possible smoothing, and incomplete samples
-getA1_new_cv <- function(X, p, dl, incre, bw = NA, kernel = 'epan', sigma2hat= NA){
+getA1_new_cv <- function(Lt, Ly, newt, dl=NULL, incre=NULL, sigma2hat= NA, ...){
   # Estimation of A with cross-validation
   # Cross validation to select the rank r
   # Range for candidate r's: 2 to (dl-incre)
   # 5-fold cross validation, i.e. 4/5 samples for estimation, 1/5 for validation
   # Return: hat_A and hat_r
-  n = dim(X)[2]; n_train = round(n * 4/5); n_test = n - n_train
+  n = length(Lt); n_train = round(n * 4/5); n_test = n - n_train
   lmax = 10  # repetition time
-  
-  X0 = X; X0[is.na(X0)] = 0; # observations with NA's replaced by zeros
-  M = 1 - is.na(X) # indicator of observable entries 
-  cross_error = rep(0, dl-incre)
+
+  # estimate delta
+  p = length(newt)
+  if (is.null(delta)) delta <- max(unlist(lapply(Lt, function(v) max(v)-min(v))))
+  if (is.null(incre)) incre <- floor(0.1 * delta * p)
+  if (is.null(dl)) dl = floor(0.9 * delta * p)
   
   for (l in 1:lmax){
     samp_train = sample(n, n_train)
     samp_test = setdiff((1:n), samp_train)
-    X_train = X[, samp_train]
-    X_test = X0[, samp_test]
+    Lt_train = Lt[samp_train]; Ly_train = Ly[samp_train]; 
+    Lt_test = Lt[samp_test]; Ly_test = Ly[samp_test]; 
     # Idea for Constructing testing covariance: use all entries of Sigma_test which appears for at least 4 times.
     # then compare the entries of Sigma_train and Sigma_test
     Sigma_test = X_test %*% t(X_test) / pmax(1, M[, samp_test] %*% t(M[, samp_test]))
-    M_test = ((M[, samp_test] %*% t(M[, samp_test]))>=4)*(1-diag(p))
     for (r in 2:(dl-incre)){
-      A_train <- getA1_new_eig(X, p, dl, incre, r, bw, kernel, sigma2hat) 
+      A_train <- getA1_new_eig(X, p, dl, incre, r,  kernel, sigma2hat, ...) 
       Sigma_train = A_train %*% t(A_train) # Training covariance
       cross_error[r] = cross_error[r] + norm((Sigma_train-Sigma_test)*M_test, "F")^2
     }
   }
   hat_r = which.min(cross_error[2:(dl-incre)]) + 1
-  A <- getA1_new_eig(X, p, dl, incre, hat_r, bw, kernel, sigma2hat)
+  A <- getA1_new_eig(Lt, Ly, r=hat_r, newt, delta, sigma2hat, ...)
   return( list(A = A, r = hat_r))
 }
 
 
 
-getA1_new_eig <- function(X, p, dl, incre, r, bw = NA, kernel= 'epan', sigma2hat = NA){ 
+getA1_new_eig <- function(Lt, Ly, newt, r=NULL, dl=NULL, incre=NULL, delta=NULL, sigma2hat = NA, ...){ 
   # getA1_new_eig use all, including incomplete, samples to calculate each piece of the A matrix, with or without smoothing.
   # Input: 
   # X: data matrix, with NaNs as unobservable entries
@@ -43,10 +44,23 @@ getA1_new_eig <- function(X, p, dl, incre, r, bw = NA, kernel= 'epan', sigma2hat
   # incre: increment of concatenation in each step
   # r: estimated rank
   # bw: a vector with length r if apply additional smoothing, no smoothing by default
-  # Output: hat_A 
-  
-  X0 = X; X0[is.na(X0)] = 0;
-  M = 1 - is.na(X)
+  # ...: additional argument passed into the cov('PACE') smoother
+  # Output: hat_A
+
+  # estimate delta
+  p = length(newt)
+  if (is.null(delta)) delta <- max(unlist(lapply(Lt, function(v) max(v)-min(v))))
+  if (is.null(incre)) incre <- floor(0.1 * delta * p)
+  if (is.null(dl)) dl = floor(0.9 * delta * p)
+  if (is.null(r)) r = dl - incre # set as max rank
+  xcov <- cov.pace(Lt, Ly, newt=newt, delta=delta, ...)
+  smoothed.x = xcov$fitted
+
+  # for (l in 1:piece){
+  #   sample.cov = smoothed.x[((l-1)*incre+1): ((l-1)*incre+dl), ((l-1)*incre+1): ((l-1)*incre+dl)]
+  #   if(any(is.infinite(sample.cov))) print(sample.cov)
+  # }
+  # sample.cov = smoothed.x[(piece*incre+1):p, (piece*incre+1):p]
   
   piece = ceiling((p-dl)/incre) # number of incremental intervals we need to construct A
   
@@ -57,11 +71,10 @@ getA1_new_eig <- function(X, p, dl, incre, r, bw = NA, kernel= 'epan', sigma2hat
   A_pre_aggre = array(NA, dim=c(p, r, piece+1))
   # A pre-aggregation 3-d array
   # A_pre_aggre contains all A.hat information: A_1.hat, A_2.hat ......
+
   for (l in 1:piece){
     # Construction of sample covariance matrix for [(l-1)*incre+1: ((l-1)*incre+dl)]
-    n_count = (M[((l-1)*incre+1): ((l-1)*incre+dl),] %*% t(M[((l-1)*incre+1): ((l-1)*incre+dl),]))
-    XX_trans = X0[((l-1)*incre+1): ((l-1)*incre+dl),] %*% t(X0[((l-1)*incre+1): ((l-1)*incre+dl),])
-    sample.cov = XX_trans/pmax(1, n_count)
+    sample.cov = smoothed.x[((l-1)*incre+1): ((l-1)*incre+dl), ((l-1)*incre+1): ((l-1)*incre+dl)]
     # svd.cov is the sample covariance for Sigma[((l-1)*dl/2+1): ((l+1)*dl/2), ((l-1)*dl/2+1): ((l+1)*dl/2)]
     eig.cov = eigen(sample.cov) 
     if(!is.na(sigma2hat)){
@@ -82,12 +95,7 @@ getA1_new_eig <- function(X, p, dl, incre, r, bw = NA, kernel= 'epan', sigma2hat
   # Construction Last piece
   l = piece+1
   #  sample.cov = X0[((l-1)*incre+1): p,] %*% t(X0[((l-1)*incre+1): p,])/(M[((l-1)*incre+1): p,] %*% t(M[((l-1)*incre+1): p,]))
-  ind.sample = (colSums(is.na(X[((l-1)*incre+1): p, ])) == 0) 
-  # search for all samples without NaN's in [((l-1)*dl/2+1): (l*dl/2)]
-  # ind.sample is the set of samples which can be used in calculating the corresponding part of A: A[((l-1)*dl/2+1): (l*dl/2),]
-  n_count = (M[((l-1)*incre+1): p,] %*% t(M[((l-1)*incre+1): p,]))
-  XX_trans = X0[((l-1)*incre+1): p,] %*% t(X0[((l-1)*incre+1): p,])
-  sample.cov = XX_trans/pmax(1, n_count)
+  sample.cov = smoothed.x[((l-1)*incre+1): p, ((l-1)*incre+1): p]
   
   # svd.cov is the sample covariance for Sigma[((l-1)*dl/2+1): ((l+1)*dl/2), ((l-1)*dl/2+1): ((l+1)*dl/2)]
   eig.cov = eigen(sample.cov) 
@@ -102,8 +110,8 @@ getA1_new_eig <- function(X, p, dl, incre, r, bw = NA, kernel= 'epan', sigma2hat
   #A_pre_aggre[((l-1)*incre+1): p, 1:r, l] = A.hat[(dl-incre+1): dim(A.hat)[1], ] %*% rota 
   A_pre_aggre[((l-1)*incre+1): p, 1:r, l] = A.hat %*% rota 
   
-  #A = f.aggre(A_pre_aggre) #Just average without smoothing
-  A = f.aggre.smooth(A_pre_aggre, p, r, bw, kernel) # Average with/without smoothing
+  A = f.aggre(A_pre_aggre) #Just average without smoothing
+  # A = f.aggre.smooth(A_pre_aggre, p, r, bw, kernel) # Average with/without smoothing
   return(A)
 }
 

@@ -85,7 +85,7 @@
 #' @export covfunc
 #' @useDynLib mcfda
 covfunc <- function( t,y,newt=NULL,mu=NULL,weig=NULL,
-                      method=c('FOURIER','PACE','SP'),...)
+                      method=c('FOURIER','PACE','SP','BE'),...)
 {
     method <- match.arg(method)
     R <- NULL
@@ -98,8 +98,10 @@ covfunc <- function( t,y,newt=NULL,mu=NULL,weig=NULL,
             return(cov.pace(t,y,mu=mu,newt=newt,...))
         else if(method=='SP')
             return(cov.sp(t,y,mu=mu,newt=newt,...))
-        else
+        else if(method=='FOURIER')
             return(cov.basis(t,y,mu=mu,newt=newt,...))
+        else if(method=='BE')
+            return(cov.be(t,y, mu=mu, newt=newt, ...))
     }
     else if(is.vector(t)) # regular design
     {
